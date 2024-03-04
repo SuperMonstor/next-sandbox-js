@@ -1,6 +1,15 @@
 "use client"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import {
+	collection,
+	addDoc,
+	onSnapshot,
+	query,
+	doc,
+	deleteDoc,
+} from "firebase/firestore"
+import { db } from "./firebase"
 
 export default function Home() {
 	const [items, setItems] = useState([
@@ -9,7 +18,49 @@ export default function Home() {
 		{ name: "candy", price: 7.95 },
 	])
 
+	const [newItem, setNewItem] = useState({ name: "", price: "" })
 	const [total, setTotal] = useState(0)
+
+	/* CRUD */
+	// Add to databse
+	const addItem = async (e) => {
+		e.preventDefault()
+		if (newItem.name !== "" && newItem.price !== "") {
+			await addDoc(collection(db, "items"), {
+				name: newItem.name.trim(),
+				price: newItem.price,
+			})
+			setNewItem({ name: "", price: "" })
+		}
+	}
+
+	// Read from database
+	useEffect(() => {
+		const q = query(collection(db, "items"))
+		const unsubscribe = onSnapshot(q, (querySnapshot) => {
+			let itemsArray = []
+			querySnapshot.forEach((doc) => {
+				itemsArray.push({ ...doc.data(), id: doc.id })
+			})
+			setItems(itemsArray)
+
+			// Calculate total
+			const calculateTotal = () => {
+				const totalPrice = itemsArray.reduce(
+					(sum, item) => sum + parseFloat(item.price),
+					0
+				)
+				setTotal(totalPrice)
+			}
+			calculateTotal()
+			return () => unsubscribe()
+		})
+	}, [])
+
+	// Delete from database
+	const deleteItem = async (id) => {
+		await deleteDoc(doc(db, "items", id))
+	}
 
 	return (
 		<main className="flex min-h-screen flex-col items-center justify-between sm:p-24 p-4">
@@ -18,17 +69,24 @@ export default function Home() {
 				<div className="bg-slate-800 p-4 rounded-lg">
 					<form className="grid grid-cols-6 items-center text-black">
 						<input
+							value={newItem.name}
+							onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
 							className="col-span-3 p-3 border"
 							type="text"
 							placeholder="Enter Item"
 						/>
 						<input
+							value={newItem.price}
+							onChange={(e) =>
+								setNewItem({ ...newItem, price: e.target.value })
+							}
 							className="col-span-2 p-3 border mx-3"
 							type="text"
 							placeholder="Enter Item"
 						/>
 						<button
 							className="text-white bg-slate-950 hover:bg-slate-900 p-3 text-xl"
+							onClick={addItem}
 							type="submit"
 							placeholder="Submit Button"
 						>
@@ -45,20 +103,23 @@ export default function Home() {
 									<span className="capitalize">{item.name}</span>
 									<span>${item.price}</span>
 								</div>
-								<button className="ml-8 p-4 border-l-2 border-slate-900 hover:bg-slate-900 w-16">
+								<button
+									onClick={() => deleteItem(item.id)}
+									className="ml-8 p-4 border-l-2 border-slate-900 hover:bg-slate-900 w-16"
+								>
 									X
 								</button>
 							</li>
 						))}
 					</ul>
-          {items.length < 1 ? (
-            ''
-          ) : (
-            <div className="flex justify-between p-3">
-              <span>Total</span>
-              <span>${total}</span>
-              </div>
-          )}
+					{items.length < 1 ? (
+						""
+					) : (
+						<div className="flex justify-between p-3">
+							<span>Total</span>
+							<span>${total}</span>
+						</div>
+					)}
 				</div>
 			</div>
 		</main>
